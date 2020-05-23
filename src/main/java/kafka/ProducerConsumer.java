@@ -90,10 +90,10 @@ public class ProducerConsumer {
                         , record.key().key()
                         , new Date(record.key().window().start()).toString()
                         , new Date(record.key().window().end()).toString()
-                        , record.value(),
-                        detectAnomaly(record.key().key(), record.value());
-                        
+                        , record.value(),                        
                         record.partition(), record.offset());
+                        detectAnomaly(record.key().key(), record.value());
+
                 });
 
                 consumer.commitAsync();
