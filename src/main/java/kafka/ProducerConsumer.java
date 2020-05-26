@@ -92,8 +92,10 @@ public class ProducerConsumer {
                         , new Date(record.key().window().end()).toString()
                         , record.value(),                        
                         record.partition(), record.offset());
-                        detectAnomaly(record.key().key(), record.value());
-
+                        // detectAnomaly(record.key().key(), record.value());
+                        detectAnomaly(record.key().key(), record.value(),
+                        record.key().window().start(), record.key().window().end()
+                        );
                 });
 
                 consumer.commitAsync();
@@ -139,7 +141,64 @@ public class ProducerConsumer {
 
     }
 
+    private static boolean detectAnomaly(String key, Long value, long start, long end) {
+        if(key == null || value == null)
+           return false;
+        Double varianceAlertThresholdRatio = 0.12;
+        Double maxMeanThreshold = 1000.0;
+        Double meanComparisonThresholdRatio = 0.10;
+        if(!summation.containsKey(key)){
+            summation.put(key, 0L);
+            squaredSummation.put(key, 0L);
+            variance.put(key, 0.0);
+            mean.put(key, 0.0);
+            N.put(key, 1L);
+        }
+        //Calculate sum x , sum x^2
+        Long relaxedNumber = value / (end-start);
+        summation.put(key, value);
+        squaredSummation.put(key, squaredSummation.get(key) + relaxedNumber* relaxedNumber);
+
+        Double oldVariance = variance.get(key);
+        Double oldMean = mean.get(key);
+
+        Long index = N.get(key);
+        Double newVariance = (1.0/index) * (squaredSummation.get(key) 
+        - (Math.pow(summation.get(key), 2)/index) );
+        Double newMean = (oldMean * (index - 1) + relaxedNumber) / (index);
+
+        variance.put(key, newVariance);
+        mean.put(key, newMean);
+        N.put(key, index + 1);
+        
+        //Check History
+        if(Math.abs(newVariance - oldVariance) > varianceAlertThresholdRatio * oldVariance){
+            System.out.println("Anomaly detected in variance.");
+        }
+
+        //Check Boundry
+        if(newMean > maxMeanThreshold){
+            System.out.println("Mean passed the maximum threshold.");
+        }
+
+        //Check Log Balancing in each server
+        for(String otherKey: mean.keySet()){
+            if(otherKey.equals(key)){
+                continue;
+            }
+            if(Math.abs(mean.get(key) - mean.get(otherKey)) > 
+                 mean.get(otherKey) * meanComparisonThresholdRatio){
+                     System.out.println("Mean divergency detected.");
+            }
+            
+        }
+
+        return true;
+    }
+
     private static boolean detectAnomaly(String key, Long value) {
+        if(key == null || value == null)
+           return false;
         Double varianceAlertThresholdRatio = 0.12;
         Double maxMeanThreshold = 1000.0;
         Double meanComparisonThresholdRatio = 0.10;
