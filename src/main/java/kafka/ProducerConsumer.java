@@ -94,8 +94,7 @@ public class ProducerConsumer {
                         record.partition(), record.offset());
                         // detectAnomaly(record.key().key(), record.value());
                         detectAnomaly(record.key().key(), record.value(),
-                        record.key().window().start(), record.key().window().end()
-                        );
+                        Duration.ofSeconds(1));
                 });
 
                 consumer.commitAsync();
@@ -141,7 +140,7 @@ public class ProducerConsumer {
 
     }
 
-    private static boolean detectAnomaly(String key, Long value, long start, long end) {
+    private static boolean detectAnomaly(String key, Long value, Duration duration) {
         if(key == null || value == null)
            return false;
         Double varianceAlertThresholdRatio = 0.12;
@@ -155,7 +154,7 @@ public class ProducerConsumer {
             N.put(key, 1L);
         }
         //Calculate sum x , sum x^2
-        Long relaxedNumber = value / (end-start);
+        Long relaxedNumber = value / (duration.toMillis());
         summation.put(key, value);
         squaredSummation.put(key, squaredSummation.get(key) + relaxedNumber* relaxedNumber);
 
@@ -174,11 +173,13 @@ public class ProducerConsumer {
         //Check History
         if(Math.abs(newVariance - oldVariance) > varianceAlertThresholdRatio * oldVariance){
             System.out.println("Anomaly detected in variance.");
+            System.out.println("Old variance : " + oldVariance + ", New variance: " + newVariance);
         }
 
         //Check Boundry
         if(newMean > maxMeanThreshold){
             System.out.println("Mean passed the maximum threshold.");
+            System.out.println("newMean: " + newMean + ", maxMeanThreshold: " + maxMeanThreshold);
         }
 
         //Check Log Balancing in each server
@@ -189,6 +190,7 @@ public class ProducerConsumer {
             if(Math.abs(mean.get(key) - mean.get(otherKey)) > 
                  mean.get(otherKey) * meanComparisonThresholdRatio){
                      System.out.println("Mean divergency detected.");
+                     System.out.println("key: " + key + ", otherKey: " + otherKey);
             }
             
         }
